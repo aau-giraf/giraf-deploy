@@ -80,6 +80,7 @@ services:
       ASPNETCORE_URLS: http://+:5171
       ConnectionStrings__DbConnection: "Host=weekplanner-db;Port=5432;Database=giraf_dev;Username=postgres;Password=${GIRAF_DB_PASSWORD:-localdev123}"
       GirafCore__BaseUrl: "http://core-api:8000"
+      JWT_SECRET: ${JWT_SECRET}
 
 volumes:
   core-db-data:
