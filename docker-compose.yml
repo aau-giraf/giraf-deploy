@@ -1,0 +1,86 @@
+services:
+  # ── giraf-core (Django) ─────────────────────────────────
+  core-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: giraf_core
+      POSTGRES_USER: giraf
+      POSTGRES_PASSWORD: ${GIRAF_DB_PASSWORD:-localdev123}
+    ports:
+      - "5432:5432"
+    volumes:
+      - core-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U giraf -d giraf_core"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  core-api:
+    build: ../giraf-core
+    ports:
+      - "8000:8000"
+    depends_on:
+      core-db:
+        condition: service_healthy
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      POSTGRES_DB: giraf_core
+      POSTGRES_USER: giraf
+      POSTGRES_PASSWORD: ${GIRAF_DB_PASSWORD:-localdev123}
+      POSTGRES_HOST: core-db
+      POSTGRES_PORT: "5432"
+      DJANGO_SECRET_KEY: dev-secret-key-change-me
+      JWT_SECRET: ${JWT_SECRET}
+
+    command: >
+      sh -c "uv run python manage.py migrate &&
+             uv run python manage.py runserver 0.0.0.0:8000"
+
+  # ── giraf-ai (FastAPI) ──────────────────────────────────
+  giraf-ai:
+    build: ../giraf-ai
+    ports:
+      - "8100:8100"
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      IMAGE_PROVIDER: ${IMAGE_PROVIDER:-mock}
+      TTS_PROVIDER: ${TTS_PROVIDER:-mock}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_TTS_CREDENTIALS: ${GOOGLE_TTS_CREDENTIALS:-}
+
+  # ── weekplanner (ASP.NET) ───────────────────────────────
+  weekplanner-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${GIRAF_DB_PASSWORD:-localdev123}
+      POSTGRES_DB: giraf_dev
+    ports:
+      - "5433:5432"
+    volumes:
+      - weekplanner-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  weekplanner-api:
+    build:
+      context: ../weekplanner/backend
+      dockerfile: Dockerfile
+    ports:
+      - "5171:5171"
+    depends_on:
+      weekplanner-db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5171
+      ConnectionStrings__DbConnection: "Host=weekplanner-db;Port=5432;Database=giraf_dev;Username=postgres;Password=${GIRAF_DB_PASSWORD:-localdev123}"
+      GirafCore__BaseUrl: "http://core-api:8000"
+
+volumes:
+  core-db-data:
+  weekplanner-db-data:
