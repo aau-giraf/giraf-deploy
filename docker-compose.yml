@@ -20,6 +20,8 @@ services:
     build: ../giraf-core
     ports:
       - "8000:8000"
+    volumes:
+      - core-media-data:/app/media
     depends_on:
       core-db:
         condition: service_healthy
@@ -85,4 +87,5 @@ services:
 
 volumes:
   core-db-data:
+  core-media-data:
   weekplanner-db-data:
