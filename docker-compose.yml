@@ -16,6 +16,18 @@ services:
       timeout: 5s
       retries: 5
 
+  core-redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - core-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   core-api:
     build: ../giraf-core
     ports:
@@ -25,16 +37,22 @@ services:
     depends_on:
       core-db:
         condition: service_healthy
+      core-redis:
+        condition: service_healthy
     environment:
-      DJANGO_SETTINGS_MODULE: config.settings.dev
+      DJANGO_SETTINGS_MODULE: config.settings.prod
       POSTGRES_DB: giraf_core
       POSTGRES_USER: giraf
       POSTGRES_PASSWORD: ${GIRAF_DB_PASSWORD:-localdev123}
       POSTGRES_HOST: core-db
       POSTGRES_PORT: "5432"
-      DJANGO_SECRET_KEY: dev-secret-key-change-me
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
       JWT_SECRET: ${JWT_SECRET}
       GIRAF_AI_URL: "http://giraf-ai:8100"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      SECURE_SSL_REDIRECT: "false"
+      REDIS_URL: redis://core-redis:6379/0
 
     command: >
       sh -c "uv run python manage.py migrate &&
@@ -88,4 +106,5 @@ services:
 volumes:
   core-db-data:
   core-media-data:
+  core-redis-data:
   weekplanner-db-data:
