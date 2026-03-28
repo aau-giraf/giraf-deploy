@@ -53,6 +53,39 @@ All backend services will be available once the health checks pass.
 | `OPENAI_API_KEY` | No | — | Required if `IMAGE_PROVIDER=openai` |
 | `GOOGLE_TTS_CREDENTIALS` | No | — | Required if `TTS_PROVIDER=google` |
 
+## Production Deployment
+
+The default `docker-compose.yml` uses `ASPNETCORE_ENVIRONMENT=Development` for the weekplanner API. For production deployments, override the following:
+
+```yaml
+# docker-compose.prod.yml or environment overrides
+weekplanner-api:
+  environment:
+    ASPNETCORE_ENVIRONMENT: Production
+    AllowedOrigins__0: https://your-frontend-domain.com
+    AllowedOrigins__1: https://another-allowed-origin.com
+```
+
+### What changes in Production mode
+
+| Feature | Development | Production |
+|---------|-------------|------------|
+| CORS | Allow all origins | Only origins in `AllowedOrigins` (fails on startup if missing) |
+| API docs | Scalar UI at `/scalar/v1`, OpenAPI at `/openapi/v1.json` | Not available (404) |
+| Rate limiting | 60 req/min per IP (active in all environments) | Same |
+
+### Strato deployment (AAU HPC)
+
+On the Strato VM (`130.225.39.225`), set environment variables in the `.env` file or override in the compose:
+
+```bash
+# Required for production
+ASPNETCORE_ENVIRONMENT=Production
+AllowedOrigins__0=http://130.225.39.225:5171
+```
+
+The weekplanner API uses `X-Forwarded-For` headers for per-IP rate limiting. If running behind a reverse proxy, ensure it forwards client IPs.
+
 ## Useful Commands
 
 ```bash
