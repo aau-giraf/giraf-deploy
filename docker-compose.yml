@@ -2,12 +2,13 @@ services:
   # ── giraf-core (Django) ─────────────────────────────────
   core-db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: giraf_core
       POSTGRES_USER: giraf
       POSTGRES_PASSWORD: ${GIRAF_DB_PASSWORD:-localdev123}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - core-db-data:/var/lib/postgresql/data
     healthcheck:
@@ -18,8 +19,9 @@ services:
 
   core-redis:
     image: redis:7-alpine
+    restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - core-redis-data:/data
     healthcheck:
@@ -30,6 +32,7 @@ services:
 
   core-api:
     build: ../giraf-core
+    restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
@@ -39,21 +42,13 @@ services:
         condition: service_healthy
       core-redis:
         condition: service_healthy
+    env_file: ../giraf-core/.env
     environment:
-      DJANGO_SETTINGS_MODULE: config.settings.prod
-      POSTGRES_DB: giraf_core
-      POSTGRES_USER: giraf
-      POSTGRES_PASSWORD: ${GIRAF_DB_PASSWORD:-localdev123}
+      # These override .env because they're internal to the compose network
       POSTGRES_HOST: core-db
       POSTGRES_PORT: "5432"
-      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
-      JWT_SECRET: ${JWT_SECRET}
       GIRAF_AI_URL: "http://giraf-ai:8100"
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
-      SECURE_SSL_REDIRECT: "false"
       REDIS_URL: redis://core-redis:6379/0
-
     command: >
       sh -c "uv run python manage.py migrate &&
              uv run python manage.py runserver 0.0.0.0:8000"
@@ -61,24 +56,21 @@ services:
   # ── giraf-ai (FastAPI) ──────────────────────────────────
   giraf-ai:
     build: ../giraf-ai
+    restart: unless-stopped
     ports:
       - "8100:8100"
-    environment:
-      JWT_SECRET: ${JWT_SECRET}
-      IMAGE_PROVIDER: ${IMAGE_PROVIDER:-mock}
-      TTS_PROVIDER: ${TTS_PROVIDER:-mock}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      GOOGLE_TTS_CREDENTIALS: ${GOOGLE_TTS_CREDENTIALS:-}
+    env_file: ../giraf-ai/.env
 
   # ── weekplanner (ASP.NET) ───────────────────────────────
   weekplanner-db:
     image: postgres:15
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${GIRAF_DB_PASSWORD:-localdev123}
       POSTGRES_DB: giraf_dev
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - weekplanner-db-data:/var/lib/postgresql/data
     healthcheck:
@@ -91,17 +83,17 @@ services:
     build:
       context: ../weekplanner/backend
       dockerfile: Dockerfile
+    restart: unless-stopped
     ports:
       - "5171:5171"
     depends_on:
       weekplanner-db:
         condition: service_healthy
+    env_file: ../weekplanner/.env
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_URLS: http://+:5171
+      # These override .env because they're internal to the compose network
       ConnectionStrings__DbConnection: "Host=weekplanner-db;Port=5432;Database=giraf_dev;Username=postgres;Password=${GIRAF_DB_PASSWORD:-localdev123}"
       GirafCore__BaseUrl: "http://core-api:8000"
-      JWT_SECRET: ${JWT_SECRET}
 
 volumes:
   core-db-data:
