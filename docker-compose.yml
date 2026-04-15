@@ -69,6 +69,9 @@ services:
       TTS_PROVIDER: ${TTS_PROVIDER:-mock}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GOOGLE_TTS_CREDENTIALS: ${GOOGLE_TTS_CREDENTIALS:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      PLAPRE_BASE_URL: ${PLAPRE_BASE_URL:-http://172.17.0.1:8200}
+      PLAPRE_CPU_BASE_URL: ${PLAPRE_CPU_BASE_URL:-http://172.17.0.1:8201}
 
   # ── weekplanner (ASP.NET) ───────────────────────────────
   weekplanner-db:
