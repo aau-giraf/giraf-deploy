@@ -34,10 +34,10 @@ cp .env.example .env    # Edit as needed
 # 2. Start everything
 docker compose up
 
-# 3. (Optional) Start the Expo frontend
+# 3. (Optional) Start the Flutter frontend
 cd ../weekplanner/frontend
-npm install
-npx expo start
+flutter pub get
+flutter run
 ```
 
 All backend services will be available once the health checks pass.
