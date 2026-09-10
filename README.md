@@ -38,7 +38,7 @@ docker compose up --build
 docker compose exec core-api uv run python manage.py seed_dev_data
 ```
 
-`setup.sh` is safe to re-run: it never overwrites an existing `.env`, and it reuses a `JWT_SECRET` that is already set rather than generating a conflicting one.
+`setup.sh` is safe to re-run. It never replaces a `.env` file or a real secret: it reuses a `JWT_SECRET` that is already set rather than generating a conflicting one, and only fills in a `JWT_SECRET` that is still blank or a placeholder from the example file. If two services hold different real secrets it stops and tells you how to start over.
 
 ## Environment files
 

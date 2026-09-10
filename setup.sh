@@ -17,6 +17,11 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SERVICES=(giraf-core giraf-ai weekplanner)
 DB_PASSWORD=localdev123
 
+# giraf-ai declares jwt_secret with Field(min_length=32) and refuses to start
+# below it, so anything shorter cannot be a working secret. That also rules
+# out the placeholders the .env.example files ship with.
+MIN_SECRET_LEN=32
+
 # --- checks ----------------------------------------------------------------
 
 missing=()
@@ -72,26 +77,31 @@ ensure_env() {
 
 # --- generate --------------------------------------------------------------
 
-# Reuse a JWT_SECRET already committed to an existing .env — a partially set
-# up tree must end with all three services agreeing, not with a fresh secret
-# in whichever file happened to be missing.
-existing=()
+# Reuse a real JWT_SECRET already committed to an existing .env — a partially
+# set up tree must end with all three services agreeing, not with a fresh
+# secret in whichever file happened to be missing. A blank or too-short value
+# is a placeholder, not a secret: it gets replaced rather than propagated.
+usable=()
 for repo in "${SERVICES[@]}"; do
   [[ -f "$ROOT/$repo/.env" ]] || continue
   value="$(sed -n 's/^JWT_SECRET=//p' "$ROOT/$repo/.env" | tail -n1)"
-  [[ -n $value ]] && existing+=("$value")
+  (( ${#value} >= MIN_SECRET_LEN )) && usable+=("$value")
 done
 
-distinct="$(printf '%s\n' ${existing[@]+"${existing[@]}"} | sort -u | grep -c . || true)"
+distinct="$(printf '%s\n' ${usable[@]+"${usable[@]}"} | sort -u | grep -c . || true)"
 if (( distinct > 1 )); then
   echo "error: the existing .env files disagree on JWT_SECRET." >&2
-  echo "All of ${SERVICES[*]} must share one value. Reconcile them, or delete" >&2
-  echo "the .env files you want regenerated and re-run." >&2
+  echo >&2
+  echo "All of ${SERVICES[*]} must share one value. To start over:" >&2
+  echo >&2
+  printf '  rm' >&2
+  for repo in "${SERVICES[@]}"; do printf ' ../%s/.env' "$repo" >&2; done
+  printf '\n  ./setup.sh\n' >&2
   exit 1
 fi
 
 if (( distinct == 1 )); then
-  JWT_SECRET="${existing[0]}"
+  JWT_SECRET="${usable[0]}"
   reused=yes
 else
   JWT_SECRET="$(openssl rand -hex 32)"
@@ -120,8 +130,17 @@ in_created() {
   return 1
 }
 
+# Write the shared secret into files this run created, and into any existing
+# file whose JWT_SECRET is a placeholder. A real secret is never overwritten:
+# by this point at most one distinct usable value exists, and it is the one
+# being written.
+filled=()
 for repo in "${SERVICES[@]}"; do
-  in_created "$repo" || continue
+  if ! in_created "$repo"; then
+    value="$(sed -n 's/^JWT_SECRET=//p' "$ROOT/$repo/.env" | tail -n1)"
+    [[ $value == "$JWT_SECRET" ]] && continue
+    filled+=("$repo")
+  fi
   set_var "$ROOT/$repo/.env" JWT_SECRET "$JWT_SECRET"
 done
 
@@ -153,6 +172,10 @@ if (( ${#skipped[@]} )); then
   echo "Already present (left unchanged):"
   for repo in "${skipped[@]}"; do echo "  $repo/.env"; done
 fi
+if (( ${#filled[@]} )); then
+  echo "JWT_SECRET filled in (was blank or a placeholder):"
+  for repo in "${filled[@]}"; do echo "  $repo/.env"; done
+fi
 if [[ $reused == yes ]]; then
   echo
   echo "Reused the JWT_SECRET already set in the existing .env file(s)."
@@ -165,6 +188,7 @@ for repo in "${SERVICES[@]}"; do
   if [[ $value != "$JWT_SECRET" ]]; then
     echo >&2
     echo "error: $repo/.env does not have the shared JWT_SECRET." >&2
+    echo "Delete it and re-run to regenerate it." >&2
     exit 1
   fi
 done
