@@ -128,11 +128,10 @@ done
 if in_created giraf-core; then
   core_env="$ROOT/giraf-core/.env"
   set_var "$core_env" DJANGO_SECRET_KEY "$DJANGO_SECRET_KEY"
-  # The postgres container is created with this password; the example file
-  # ships a different one, which fails auth on migrate.
+  # Compose pins the database credentials for the container. These matter
+  # only when running Django directly against the published port, so point
+  # them at the same database with the password that container was made with.
   set_var "$core_env" POSTGRES_PASSWORD "$DB_PASSWORD"
-  # compose overrides host/port to the internal service, but keep the file
-  # usable for running Django directly against the published port.
   set_var "$core_env" POSTGRES_HOST localhost
   set_var "$core_env" POSTGRES_PORT 5432
   # Dev settings: DEBUG on, permissive CORS, API docs served, no SSL redirect.
