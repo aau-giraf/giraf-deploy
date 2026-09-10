@@ -47,6 +47,9 @@ services:
       # These override .env because they're internal to the compose network
       POSTGRES_HOST: core-db
       POSTGRES_PORT: "5432"
+      POSTGRES_DB: giraf_core
+      POSTGRES_USER: giraf
+      POSTGRES_PASSWORD: ${GIRAF_DB_PASSWORD:-localdev123}
       GIRAF_AI_URL: "http://giraf-ai:8100"
       REDIS_URL: redis://core-redis:6379/0
     command: >

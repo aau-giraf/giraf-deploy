@@ -51,10 +51,7 @@ docker compose exec core-api uv run python manage.py seed_dev_data
 | `weekplanner/.env` | `JWT_SECRET`, `ASPNETCORE_ENVIRONMENT` | `weekplanner/.env.example` |
 | `giraf-deploy/.env` | `GIRAF_DB_PASSWORD` only | `.env.example` |
 
-Two rules matter:
-
-- **`JWT_SECRET` must be byte-identical in giraf-core, giraf-ai and weekplanner.** giraf-core issues the tokens; the other two validate them locally with the same key.
-- **`POSTGRES_PASSWORD` in `giraf-core/.env` must equal `GIRAF_DB_PASSWORD`.** The database container is created with the latter; core-api authenticates with the former.
+The rule that matters: **`JWT_SECRET` must be byte-identical in giraf-core, giraf-ai and weekplanner.** giraf-core issues the tokens; the other two validate them locally with the same key. Nothing checks this at startup — a mismatch surfaces as a 401 later.
 
 Setting `JWT_SECRET`, `DJANGO_SECRET_KEY` or a provider key in `giraf-deploy/.env` has no effect — compose does not pass them to any service.
 
@@ -64,8 +61,10 @@ These are set in `docker-compose.yml` and win over whatever is in the service `.
 
 | Service | Overridden |
 |---------|-----------|
-| core-api | `POSTGRES_HOST`, `POSTGRES_PORT`, `REDIS_URL`, `GIRAF_AI_URL` |
+| core-api | `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `REDIS_URL`, `GIRAF_AI_URL` |
 | weekplanner-api | `ConnectionStrings__DbConnection`, `GirafCore__BaseUrl` |
+
+Database credentials are pinned to the values the `core-db` container is created with, so `POSTGRES_*` in `giraf-core/.env` applies only when running Django directly against the published port.
 
 ## Doing without setup.sh
 
@@ -75,7 +74,6 @@ cd ..
 for r in giraf-core giraf-ai weekplanner giraf-deploy; do cp -n $r/.env.example $r/.env; done
 sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$SECRET|" giraf-core/.env giraf-ai/.env weekplanner/.env
 sed -i "s|^DJANGO_SECRET_KEY=.*|DJANGO_SECRET_KEY=$(openssl rand -hex 32)|" giraf-core/.env
-sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=localdev123|" giraf-core/.env
 cd giraf-deploy && docker compose up --build
 ```
 
@@ -115,7 +113,7 @@ API docs are served in development only:
 
 **`KeyError: 'DJANGO_SECRET_KEY'`** (core-api) — core is running production settings. Set `DJANGO_SETTINGS_MODULE=config.settings.dev` in `giraf-core/.env`; the image defaults to `config.settings.prod`, which also forces an HTTPS redirect that breaks plain-HTTP local use.
 
-**`password authentication failed for user "giraf"`** (core-api) — `POSTGRES_PASSWORD` in `giraf-core/.env` does not match `GIRAF_DB_PASSWORD`. If you already started the stack once, the database volume keeps the original password: `docker compose down -v` to reset it.
+**`password authentication failed for user "giraf"`** (core-api) — you changed `GIRAF_DB_PASSWORD` after the stack had already run once. The database volume keeps the password the container was first created with; `docker compose down -v` resets it (and destroys the data).
 
 **401 from giraf-ai or weekplanner with a token that core just issued** — the `JWT_SECRET` values differ. Check with:
 
